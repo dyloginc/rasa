@@ -667,12 +667,12 @@ class MessageProcessor:
         )
 
     async def parse_message(
-        self, message: UserMessage, only_output_properties: bool = True
+        self, messages: List[UserMessage], only_output_properties: bool = True
     ) -> Dict[Text, Any]:
         """Interprets the passed message.
 
         Args:
-            message: Message to handle.
+            messages: List of Messages to handle.
             only_output_properties: If `True`, restrict the output to
                 Message.only_output_properties.
 
@@ -680,9 +680,9 @@ class MessageProcessor:
             Parsed data extracted from the message.
         """
         if self.http_interpreter:
-            parse_data = await self.http_interpreter.parse(message)
+            parse_data = await self.http_interpreter.parse(messages[0])
         else:
-            parse_data = self._parse_message_with_graph(message, only_output_properties)
+            parse_data = self._parse_message_with_graph(messages, only_output_properties)
 
         logger.debug(
             "Received user message '{}' with intent '{}' "
@@ -696,19 +696,19 @@ class MessageProcessor:
         return parse_data
 
     def _parse_message_with_graph(
-        self, message: UserMessage, only_output_properties: bool = True
+        self, messages: List[UserMessage], only_output_properties: bool = True
     ) -> Dict[Text, Any]:
         """Interprets the passed message.
 
         Arguments:
-            message: Message to handle
+            messages: Messages to handle
 
         Returns:
             Parsed data extracted from the message.
         """
         results = self.graph_runner.run(
-            inputs={PLACEHOLDER_MESSAGE: [message]},
-            targets=[self.model_metadata.nlu_target],
+            inputs={PLACEHOLDER_MESSAGE: messages},
+            targets=[self.model_metadata.nlu_target]
         )
         parsed_messages = results[self.model_metadata.nlu_target]
         parsed_message = parsed_messages[0]
@@ -729,7 +729,22 @@ class MessageProcessor:
         if message.parse_data:
             parse_data = message.parse_data
         else:
-            parse_data = await self.parse_message(message)
+            # get all the previous messages and pass them for intent prediction
+            messages = []
+            for event in tracker.events:
+                if isinstance(event, UserUttered) or isinstance(event, BotUttered):
+                    metadata = event.metadata
+                    metadata["from"] = "user" if isinstance(event, UserUttered) else "bot"
+                    prev_message = UserMessage(
+                        text=event.text,
+                        metadata=metadata,
+                    )
+                    messages.append(prev_message)
+                else:
+                    continue
+            message.metadata = {"from": "user"}
+            messages.append(message)
+            parse_data = await self.parse_message(messages)
 
         # don't ever directly mutate the tracker
         # - instead pass its events to log
