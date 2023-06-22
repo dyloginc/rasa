@@ -733,16 +733,20 @@ class MessageProcessor:
             messages = []
             for event in tracker.events:
                 if isinstance(event, UserUttered) or isinstance(event, BotUttered):
+                    if isinstance(event, UserUttered) and event.text == "None":
+                        continue
                     metadata = event.metadata
-                    metadata["from"] = "user" if isinstance(event, UserUttered) else "bot"
+                    # add identifier for messages between user and bot
+                    metadata["message_from"] = "User" if isinstance(event, UserUttered) else "Assistant"
+                    text_message = event.text if isinstance(event, UserUttered) else event.data["custom"]["voiceovertext"]
                     prev_message = UserMessage(
-                        text=event.text,
+                        text=text_message,
                         metadata=metadata,
                     )
                     messages.append(prev_message)
                 else:
                     continue
-            message.metadata = {"from": "user"}
+            message.metadata = {"message_from": "User"}
             messages.append(message)
             parse_data = await self.parse_message(messages)
 
