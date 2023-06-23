@@ -736,6 +736,8 @@ class MessageProcessor:
                     if isinstance(event, UserUttered) and event.text == "None":
                         continue
                     metadata = event.metadata
+                    if isinstance(event, BotUttered):
+                        metadata['interaction_type'] = event.data["custom"]["interaction_type"]
                     # add identifier for messages between user and bot
                     metadata["message_from"] = "User" if isinstance(event, UserUttered) else "Assistant"
                     text_message = event.text if isinstance(event, UserUttered) else event.data["custom"]["voiceovertext"]
