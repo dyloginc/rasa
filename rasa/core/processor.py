@@ -737,7 +737,12 @@ class MessageProcessor:
                         continue
                     metadata = event.metadata
                     if isinstance(event, BotUttered):
-                        metadata['interaction_type'] = event.data["custom"]["interaction_type"]
+                        try:
+                            metadata['interaction_type'] = event.data["custom"]["interaction_type"]
+                        except TypeError:
+                            logger.error("No interaction type found in bot utterance")
+                            logger.error(str(event.data))
+                            metadata['interaction_type'] = "prompt"
                     # add identifier for messages between user and bot
                     metadata["message_from"] = "User" if isinstance(event, UserUttered) else "Assistant"
                     text_message = event.text if isinstance(event, UserUttered) else event.data["custom"]["voiceovertext"]
@@ -748,7 +753,9 @@ class MessageProcessor:
                     messages.append(prev_message)
                 else:
                     continue
-            message.metadata = {"message_from": "User"}
+            metadata = message.metadata if message.metadata else {}
+            metadata["message_from"] = "User"
+            message.metadata = metadata
             messages.append(message)
             parse_data = await self.parse_message(messages)
 
